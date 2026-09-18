@@ -364,12 +364,9 @@
         charImgEl.src = currentCustomImg || './assets/target.png';
       }, 350);
 
-      // 크리티컬 화면 흔들림 및 붉은 섬광
-      gameContainerEl.classList.remove('screen-shake');
-      void gameContainerEl.offsetWidth; // reflow
-      gameContainerEl.classList.add('screen-shake');
-
-      // 캐릭터 크리티컬 피격 모션
+      // 캐릭터 전용 크리티컬 피격 & 흔들림 모션 (화면은 고정하여 멀미 방지)
+      charContainerEl.classList.remove('anim-crit', 'anim-hit-left', 'anim-hit-right');
+      void charContainerEl.offsetWidth; // reflow
       charContainerEl.className = 'anim-crit';
 
       // 스코어 범프
@@ -393,14 +390,11 @@
         charImgEl.src = currentCustomImg || './assets/target.png';
       }, 120);
 
-      // 찰진 화면 진동 효과 (모든 기기에서 즉각 진동 체감)
-      gameContainerEl.classList.remove('screen-vibrate', 'screen-shake');
-      void gameContainerEl.offsetWidth; // reflow
-      gameContainerEl.classList.add('screen-vibrate');
-
-      // 좌/우 번갈아가며 타격 모션 + 진동
+      // 캐릭터만 좌/우 번갈아가며 타격 모션 & 흔들림 (화면은 고정)
       hitToggle = !hitToggle;
-      charContainerEl.className = (hitToggle ? 'anim-hit-left' : 'anim-hit-right') + ' vibrate-tap';
+      charContainerEl.classList.remove('anim-crit', 'anim-hit-left', 'anim-hit-right');
+      void charContainerEl.offsetWidth; // reflow
+      charContainerEl.className = hitToggle ? 'anim-hit-left' : 'anim-hit-right';
 
       // 스코어 범프
       hitCountEl.classList.remove('bump', 'crit-bump');
