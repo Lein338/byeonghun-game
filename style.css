@@ -256,6 +256,20 @@ html, body {
   animation: hitCrit 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
+/* 탭할 때마다 발생하는 강렬한 시각적 진동 효과 */
+.vibrate-tap {
+  animation: visualVibrate 0.09s ease-in-out both;
+}
+
+@keyframes visualVibrate {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-4px, 3px) rotate(-1.5deg); }
+  40% { transform: translate(4px, -3px) rotate(1.5deg); }
+  60% { transform: translate(-3px, -2px) rotate(-0.8deg); }
+  80% { transform: translate(3px, 2px) rotate(0.8deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
 @keyframes hitLeft {
   0% { transform: scale(0.92) rotate(-8deg) translateX(-10px); }
   50% { transform: scale(0.96) rotate(4deg) translateX(5px); }
@@ -269,22 +283,34 @@ html, body {
 }
 
 @keyframes hitCrit {
-  0% { transform: scale(0.82) rotate(-14deg) translateY(20px); filter: brightness(1.5) contrast(1.2); }
-  30% { transform: scale(1.15) rotate(10deg) translateY(-10px); }
+  0% { transform: scale(0.82) rotate(-14deg) translateY(20px); filter: brightness(1.6) contrast(1.3); }
+  30% { transform: scale(1.18) rotate(10deg) translateY(-10px); }
   60% { transform: scale(0.95) rotate(-4deg); }
   100% { transform: scale(1) rotate(0deg) translateY(0); filter: brightness(1) contrast(1); }
 }
 
-/* 화면 전체 크리티컬 충격 플래시 */
+/* 화면 전체 진동 효과 (일반 & 크리티컬) */
+.screen-vibrate {
+  animation: screenQuickShake 0.1s linear both;
+}
+
 .screen-shake {
-  animation: shake 0.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  animation: shake 0.25s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes screenQuickShake {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(3px, -2px); }
+  75% { transform: translate(-2px, -1px); }
+  100% { transform: translate(0, 0); }
 }
 
 @keyframes shake {
-  10%, 90% { transform: translate3d(-3px, 0, 0); }
-  20%, 80% { transform: translate3d(4px, 2px, 0); }
-  30%, 50%, 70% { transform: translate3d(-6px, -4px, 0); }
-  40%, 60% { transform: translate3d(6px, 4px, 0); }
+  10%, 90% { transform: translate3d(-5px, 0, 0) scale(1.01); }
+  20%, 80% { transform: translate3d(6px, 3px, 0) scale(0.99); }
+  30%, 50%, 70% { transform: translate3d(-8px, -5px, 0) scale(1.02); }
+  40%, 60% { transform: translate3d(8px, 5px, 0) scale(0.98); }
 }
 
 /* 어지러운 별 회전 */

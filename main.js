@@ -184,15 +184,48 @@
     });
   }
 
-  // --- 진동 햅틱 (Android 지원 브라우저) ---
+  // --- 진동 햅틱 엔진 (Android 하드웨어 진동 + iOS/전기종 스피커 물리 진동) ---
   function triggerHaptic(isCrit) {
-    if (!hapticEnabled || !navigator.vibrate) return;
-    try {
-      if (isCrit) {
-        navigator.vibrate([40, 20, 80]); // 크리티컬: 쿵쾅 2단 진동
-      } else {
-        navigator.vibrate(15); // 일반: 15ms 찰나의 진동
+    if (!hapticEnabled) return;
+
+    // 1. Android 하드웨어 진동 모터 호출 (시간을 50ms로 늘려 확실하게 모터 기동)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        if (isCrit) {
+          navigator.vibrate([80, 40, 100]); // 크리티컬 2단 강타
+        } else {
+          navigator.vibrate(50); // 일반 50ms 손맛 진동
+        }
+      } catch (err) {
+        console.warn('Vibration API error:', err);
       }
+    }
+
+    // 2. iOS Safari 및 스마트폰용 물리적 스피커 햅틱 진동 펄스 (스피커 진동판이 폰을 떨리게 함)
+    playHapticAudioPulse(isCrit);
+  }
+
+  // 스피커를 모터처럼 진동시키는 35Hz 초저주파 서브우퍼 펄스
+  function playHapticAudioPulse(isCrit) {
+    if (!audioCtx) return;
+    try {
+      const t = audioCtx.currentTime;
+      const subOsc = audioCtx.createOscillator();
+      const subGain = audioCtx.createGain();
+
+      // 초저주파 정현파 (소리는 묵직하게 낮고 폰 본체를 물리적으로 진동시킴)
+      subOsc.type = 'sine';
+      subOsc.frequency.setValueAtTime(isCrit ? 45 : 32, t);
+
+      const dur = isCrit ? 0.08 : 0.05;
+      subGain.gain.setValueAtTime(1.0, t);
+      subGain.gain.exponentialRampToValueAtTime(0.01, t + dur);
+
+      subOsc.connect(subGain);
+      subGain.connect(audioCtx.destination);
+
+      subOsc.start(t);
+      subOsc.stop(t + dur);
     } catch (e) {
       // ignore
     }
@@ -360,9 +393,14 @@
         charImgEl.src = currentCustomImg || './assets/target.png';
       }, 120);
 
-      // 좌/우 번갈아가며 타격 모션
+      // 찰진 화면 진동 효과 (모든 기기에서 즉각 진동 체감)
+      gameContainerEl.classList.remove('screen-vibrate', 'screen-shake');
+      void gameContainerEl.offsetWidth; // reflow
+      gameContainerEl.classList.add('screen-vibrate');
+
+      // 좌/우 번갈아가며 타격 모션 + 진동
       hitToggle = !hitToggle;
-      charContainerEl.className = hitToggle ? 'anim-hit-left' : 'anim-hit-right';
+      charContainerEl.className = (hitToggle ? 'anim-hit-left' : 'anim-hit-right') + ' vibrate-tap';
 
       // 스코어 범프
       hitCountEl.classList.remove('bump', 'crit-bump');
@@ -387,19 +425,23 @@
   }, 200);
 
   // --- 멀티 터치 및 마우스 이벤트 바인딩 ---
-  stageEl.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    hit(e.clientX, e.clientY);
-  }, { passive: false });
+  let isTouching = false;
 
-  // 모바일 다중 터치 (동시 2~3손가락 연타) 지원
   stageEl.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    isTouching = true;
     initAudio();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       hit(touch.clientX, touch.clientY);
     }
+    setTimeout(() => { isTouching = false; }, 300);
+  }, { passive: false });
+
+  stageEl.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' || isTouching) return; // 터치 이벤트와 중복 방지
+    e.preventDefault();
+    hit(e.clientX, e.clientY);
   }, { passive: false });
 
   // 우클릭 메뉴 및 롱프레스 팝업 방어
