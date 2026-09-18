@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <radialGradient id="hitFaceGrad" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFD4BD"/>
+      <stop offset="100%" stop-color="#E8967A"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <ellipse cx="200" cy="370" rx="90" ry="18" fill="rgba(0,0,0,0.2)"/>
+
+  <!-- 몸통 (타격으로 기우뚱) -->
+  <g transform="rotate(-5 200 350)">
+    <path d="M 120 340 C 130 280, 270 280, 280 340 L 290 400 L 110 400 Z" fill="#3B82F6" filter="url(#shadow)"/>
+    <path d="M 180 290 L 200 330 L 220 290 Z" fill="#FFFFFF"/>
+    <text x="200" y="360" font-family="'Impact', sans-serif" font-size="18" font-weight="bold" fill="#FFFFFF" text-anchor="middle">BH</text>
+  </g>
+
+  <!-- 귀 -->
+  <circle cx="100" cy="200" r="22" fill="#E8967A"/>
+  <circle cx="300" cy="200" r="22" fill="#E8967A"/>
+
+  <!-- 얼굴 (살짝 일그러짐) -->
+  <ellipse cx="200" cy="195" rx="108" ry="102" fill="url(#hitFaceGrad)" filter="url(#shadow)"/>
+
+  <!-- 머리카락 헝클어짐 -->
+  <path d="M 95 170 C 90 100, 150 70, 200 75 C 260 70, 310 110, 305 170 C 285 130, 250 110, 200 110 C 150 110, 115 130, 95 170 Z" fill="#222222"/>
+  <!-- 삐죽 솟은 머리카락 -->
+  <path d="M 140 75 Q 150 40 165 70" fill="#222222"/>
+  <path d="M 230 75 Q 245 45 255 70" fill="#222222"/>
+
+  <!-- 눈썹 (고통) -->
+  <line x1="130" y1="162" x2="175" y2="148" stroke="#222222" stroke-width="6" stroke-linecap="round"/>
+  <line x1="225" y1="148" x2="270" y2="165" stroke="#222222" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- 눈 (왼쪽 질끈 감음 > < 오른쪽 멍들어서 퀭함) -->
+  <!-- 왼쪽 감은 눈 -->
+  <path d="M 140 175 L 155 185 L 140 195" fill="none" stroke="#222222" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 오른쪽 멍든 눈 -->
+  <circle cx="245" cy="180" r="24" fill="#9333EA" opacity="0.35"/>
+  <ellipse cx="245" cy="180" rx="10" ry="8" fill="#FFFFFF"/>
+  <circle cx="245" cy="180" r="4" fill="#000000"/>
+
+  <!-- 맞은 자국 (붉은 타격 부위) -->
+  <ellipse cx="140" cy="220" rx="28" ry="18" fill="#EF4444" opacity="0.45"/>
+  <!-- 볼의 반창고 -->
+  <rect x="120" y="212" width="36" height="14" rx="4" fill="#FDE047" transform="rotate(20 138 219)"/>
+  <circle cx="138" cy="219" r="2" fill="#EAB308"/>
+
+  <!-- 코 -->
+  <path d="M 200 185 L 194 210 L 206 210 Z" fill="#C0392B"/>
+
+  <!-- 입 (비명/으악 'O') -->
+  <ellipse cx="205" cy="245" rx="18" ry="24" fill="#5A1A1A"/>
+  <ellipse cx="205" cy="254" rx="12" ry="10" fill="#EF4444"/>
+
+  <!-- 눈물 찔끔 -->
+  <path d="M 130 188 C 120 195, 120 205, 130 205 C 140 205, 140 195, 130 188 Z" fill="#60A5FA"/>
+</svg>

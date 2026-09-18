@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <radialGradient id="faceGrad" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFE0BD"/>
+      <stop offset="100%" stop-color="#F2BE91"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- 배경 그림자 -->
+  <ellipse cx="200" cy="370" rx="90" ry="18" fill="rgba(0,0,0,0.15)"/>
+
+  <!-- 몸통/옷 -->
+  <path d="M 120 340 C 130 280, 270 280, 280 340 L 290 400 L 110 400 Z" fill="#3B82F6" filter="url(#shadow)"/>
+  <path d="M 180 290 L 200 330 L 220 290 Z" fill="#FFFFFF"/>
+  <text x="200" y="360" font-family="'Impact', sans-serif" font-size="18" font-weight="bold" fill="#FFFFFF" text-anchor="middle">BH</text>
+
+  <!-- 귀 -->
+  <circle cx="100" cy="200" r="22" fill="#F2BE91"/>
+  <circle cx="100" cy="200" r="12" fill="#E59866"/>
+  <circle cx="300" cy="200" r="22" fill="#F2BE91"/>
+  <circle cx="300" cy="200" r="12" fill="#E59866"/>
+
+  <!-- 얼굴 -->
+  <circle cx="200" cy="195" r="105" fill="url(#faceGrad)" filter="url(#shadow)"/>
+
+  <!-- 머리카락 -->
+  <path d="M 98 170 C 95 110, 150 75, 200 75 C 255 75, 305 110, 302 170 C 285 130, 250 110, 200 110 C 150 110, 115 130, 98 170 Z" fill="#222222"/>
+  <path d="M 130 90 Q 150 65 170 85 Q 200 60 220 85 Q 250 65 270 95" fill="#222222"/>
+
+  <!-- 눈썹 (건방진 느낌) -->
+  <line x1="130" y1="150" x2="175" y2="158" stroke="#222222" stroke-width="6" stroke-linecap="round"/>
+  <line x1="225" y1="158" x2="270" y2="145" stroke="#222222" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- 눈 (얄미운 실눈/미소) -->
+  <ellipse cx="155" cy="180" rx="14" ry="12" fill="#222222"/>
+  <circle cx="159" cy="177" r="4" fill="#FFFFFF"/>
+  <ellipse cx="245" cy="180" rx="14" ry="12" fill="#222222"/>
+  <circle cx="249" cy="177" r="4" fill="#FFFFFF"/>
+
+  <!-- 코 -->
+  <path d="M 200 185 L 194 210 L 206 210 Z" fill="#D98880"/>
+
+  <!-- 입 (약올리는 썩소) -->
+  <path d="M 165 235 Q 195 260 240 230" fill="none" stroke="#881B1B" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 235 230 Q 248 220 245 238" fill="none" stroke="#881B1B" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- 볼터치 살짝 -->
+  <circle cx="130" cy="215" r="14" fill="rgba(255,100,100,0.2)"/>
+  <circle cx="270" cy="215" r="14" fill="rgba(255,100,100,0.2)"/>
+</svg>

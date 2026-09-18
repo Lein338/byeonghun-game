@@ -1,0 +1,14 @@
+{
+  "name": "byeonghun-puncher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "병훈이 개패기 - iOS / Android 모바일 웹 아케이드 클리커 게임",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.2"
+  }
+}

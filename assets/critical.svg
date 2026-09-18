@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <radialGradient id="critFaceGrad" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFCCCC"/>
+      <stop offset="100%" stop-color="#E57373"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <ellipse cx="200" cy="370" rx="90" ry="18" fill="rgba(0,0,0,0.2)"/>
+
+  <!-- 머리 위의 커다란 혹 -->
+  <ellipse cx="250" cy="80" rx="28" ry="36" fill="#FF5722" transform="rotate(25 250 80)"/>
+  <ellipse cx="255" cy="72" rx="10" ry="15" fill="#FFA726" transform="rotate(25 255 72)"/>
+  <!-- 혹에서 나는 김 -->
+  <path d="M 270 45 Q 280 30 270 15" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 285 50 Q 295 35 285 20" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 몸통 (타격으로 찌그러짐) -->
+  <g transform="rotate(8 200 350)">
+    <path d="M 120 340 C 130 280, 270 280, 280 340 L 290 400 L 110 400 Z" fill="#2563EB" filter="url(#shadow)"/>
+    <path d="M 180 290 L 200 330 L 220 290 Z" fill="#FFFFFF"/>
+    <!-- 찢어진 옷 자국 -->
+    <line x1="140" y1="360" x2="160" y2="380" stroke="#1D4ED8" stroke-width="3"/>
+    <line x1="240" y1="350" x2="260" y2="370" stroke="#1D4ED8" stroke-width="3"/>
+  </g>
+
+  <!-- 귀 -->
+  <circle cx="95" cy="205" r="22" fill="#E57373"/>
+  <circle cx="305" cy="195" r="22" fill="#E57373"/>
+
+  <!-- 얼굴 (크게 찌그러지고 붉어짐) -->
+  <ellipse cx="198" cy="195" rx="106" ry="100" fill="url(#critFaceGrad)" filter="url(#shadow)"/>
+
+  <!-- 머리카락 폭탄 맞은 듯 산발 -->
+  <path d="M 90 170 C 85 90, 140 60, 200 65 C 240 65, 310 90, 305 170 Z" fill="#222222"/>
+  <path d="M 110 80 L 100 40 L 130 65 L 150 25 L 175 65 L 200 15 L 220 60 L 250 35 L 255 70" fill="#222222"/>
+
+  <!-- 양쪽 눈 멍 -->
+  <circle cx="150" cy="175" r="28" fill="#7C3AED" opacity="0.45"/>
+  <circle cx="245" cy="175" r="28" fill="#7C3AED" opacity="0.45"/>
+
+  <!-- 눈 (양쪽 모두 빙글빙글 나선/골뱅이 @ @) -->
+  <path d="M 150 175 m -16 0 a 16 16 0 0 1 32 0 a 12 12 0 0 1 -24 0 a 8 8 0 0 1 16 0 a 4 4 0 0 1 -8 0" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 245 175 m -16 0 a 16 16 0 0 1 32 0 a 12 12 0 0 1 -24 0 a 8 8 0 0 1 16 0 a 4 4 0 0 1 -8 0" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- 코피 뿜음 -->
+  <path d="M 198 185 L 192 210 L 204 210 Z" fill="#B71C1C"/>
+  <path d="M 194 210 C 190 225, 192 235, 190 245" fill="none" stroke="#DC2626" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="190" cy="248" r="3.5" fill="#DC2626"/>
+
+  <!-- 입 (벌어지고 이빨 깨짐) -->
+  <path d="M 160 235 Q 200 275 240 235 Z" fill="#3E1111"/>
+  <!-- 치아 (윗니 하나 빠짐) -->
+  <rect x="175" y="235" width="10" height="9" fill="#FFFFFF"/>
+  <rect x="215" y="235" width="10" height="9" fill="#FFFFFF"/>
+
+  <!-- 반창고 X자 (이마와 뺨) -->
+  <rect x="130" y="115" width="30" height="10" rx="3" fill="#FDE047" transform="rotate(45 145 120)"/>
+  <rect x="130" y="115" width="30" height="10" rx="3" fill="#FDE047" transform="rotate(-45 145 120)"/>
+
+  <!-- 머리 위 빙글빙글 도는 노란 별들 -->
+  <polygon points="120,40 124,50 135,50 126,57 129,67 120,61 111,67 114,57 105,50 116,50" fill="#FACC15"/>
+  <polygon points="200,20 203,28 212,28 205,33 207,41 200,36 193,41 195,33 188,28 197,28" fill="#FACC15"/>
+  <polygon points="280,50 283,57 291,57 285,62 287,69 280,65 273,69 275,62 269,57 277,57" fill="#FACC15"/>
+</svg>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>병훈이 개패기</title>
+
+  <!-- iOS Safari PWA 메타 태그 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="병훈이개패기">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./assets/target.svg">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- 배경 이펙트용 캔버스 -->
+    <canvas id="fx-canvas"></canvas>
+
+    <!-- 상단 대시보드 (스코어보드) -->
+    <header id="scoreboard">
+      <div class="title-row">
+        <h1 class="game-title">🥊 병훈이 개패기</h1>
+        <div class="quick-controls">
+          <button id="sound-btn" class="icon-btn" title="사운드 토글">🔊</button>
+          <button id="haptic-btn" class="icon-btn" title="진동 토글">📳</button>
+          <button id="info-btn" class="icon-btn" title="정보">ℹ️</button>
+        </div>
+      </div>
+
+      <div class="counter-display">
+        <div class="count-label">누적 타격 수</div>
+        <div class="count-number" id="hit-count">0</div>
+        <div class="goal-label">목표: 1,000,000대</div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="progress-stats">
+          <span id="progress-percent">0.0000%</span>
+          <span id="crit-stats">💥 크리티컬: 0회 (3%)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 메인 타격 영역 (캐릭터) -->
+    <main id="stage">
+      <div id="character-wrapper">
+        <div id="character-container">
+          <!-- 실제 인물 누끼 이미지 (또는 플레이스홀더) -->
+          <img id="character-img" src="./assets/target.png" alt="병훈이" draggable="false" />
+          
+          <!-- 피격 플래시 & 멍 오버레이 -->
+          <div id="bruise-overlay"></div>
+          <div id="hit-flash"></div>
+        </div>
+
+        <!-- 머리 위 별/어지러움 이펙트 컨테이너 -->
+        <div id="dizzy-stars" class="hidden">
+          <span>⭐</span><span>💫</span><span>✨</span>
+        </div>
+      </div>
+
+      <!-- 플로팅 데미지 텍스트들이 동적으로 렌더링되는 컨테이너 -->
+      <div id="floating-text-container"></div>
+    </main>
+
+    <!-- 하단 상태 및 도구 메뉴 -->
+    <footer id="footer-bar">
+      <div class="stats-ticker">
+        <span>⚡ 초당 타격(CPS): <b id="cps-display">0</b></span>
+        <span class="tip-text">👆 두 손가락으로 광클 가능!</span>
+      </div>
+
+      <!-- 개발/테스트 및 데이터 관리용 툴바 -->
+      <div class="action-buttons">
+        <button id="dev-menu-btn" class="sub-btn">⚙️ 메뉴 / 치트</button>
+      </div>
+    </footer>
+
+    <!-- 치트 & 설정 모달 -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card">
+        <h2>🛠️ 게임 메뉴 & 테스트</h2>
+        <div class="modal-section">
+          <h3>🎮 테스트용 치트키 (배타 확인용)</h3>
+          <div class="cheat-grid">
+            <button class="cheat-btn" data-add="100">+100대</button>
+            <button class="cheat-btn" data-add="1000">+1,000대</button>
+            <button class="cheat-btn" data-add="100000">+100,000대</button>
+            <button class="cheat-btn" data-set="999990">클리어 직전 (999,990대)</button>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h3>🖼️ 캐릭터 사진 교체</h3>
+          <p class="section-desc">원하는 사진으로 즉시 교체하여 플레이할 수 있습니다.</p>
+          <input type="file" id="custom-image-input" accept="image/*" class="file-input" />
+          <button id="reset-img-btn" class="sub-btn text-danger">기본 사진으로 복원</button>
+        </div>
+
+        <div class="modal-section">
+          <h3>⚠️ 데이터 관리</h3>
+          <button id="reset-data-btn" class="danger-btn">타격 기록 0으로 초기화</button>
+        </div>
+
+        <button id="close-modal-btn" class="primary-btn">닫기</button>
+      </div>
+    </div>
+
+    <!-- 1,000,000회 달성 시 Game Clear 축하 모달 -->
+    <div id="clear-modal" class="modal hidden">
+      <div class="modal-backdrop celebration"></div>
+      <div class="modal-card clear-card">
+        <div class="trophy-icon">🏆</div>
+        <h1 class="clear-title">GAME CLEAR</h1>
+        <p class="clear-subtitle">🎉 축하합니다! 병훈이를 1,000,000대 패는데 성공하셨습니다! 🎉</p>
+        
+        <div class="clear-record">
+          <div>최종 타격 수: <strong>1,000,000</strong>대</div>
+          <div>터진 크리티컬: <strong id="clear-crit-count">0</strong>회</div>
+        </div>
+
+        <div class="clear-speech">
+          <p>“살려주셔서 감사합니다... 다시는 깝치지 않겠습니다...”</p>
+          <span class="speech-author">- 병훈 올림 -</span>
+        </div>
+
+        <div class="clear-actions">
+          <button id="share-btn" class="primary-btn">🔗 승리 자랑하기</button>
+          <button id="restart-game-btn" class="sub-btn">처음부터 다시 패기 (1회차 추가)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./main.js"></script>
+</body>
+</html>
