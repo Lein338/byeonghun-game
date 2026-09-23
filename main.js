@@ -1,35 +1,84 @@
 /**
  * 병훈이 개패기 (Byeonghun Puncher) - Core Game Engine
+ * Features:
+ * 1. Stage System (1단계 100대, 2단계 500대 ... 8단계 1,000,000대)
+ * 2. Realistic Fleshy Punch Sound (리얼 퍽퍽 사운드 & 피치 변조)
+ * 3. Fever Time (0.05% 확률 발동, 10초간 10배 데미지)
  */
 
 (function () {
   'use strict';
 
-  // --- 상수 & 환경 변수 ---
+  // --- 스테이지 정의 ---
+  const STAGES = [
+    { stage: 1, name: "동네 골목길", goal: 100 },
+    { stage: 2, name: "학교 복도", goal: 500 },
+    { stage: 3, name: "노래방 앞", goal: 2000 },
+    { stage: 4, name: "동아리방", goal: 10000 },
+    { stage: 5, name: "강남역 사거리", goal: 50000 },
+    { stage: 6, name: "지하 격투장", goal: 200000 },
+    { stage: 7, name: "진격의 거인", goal: 500000 },
+    { stage: 8, name: "우주 정복 (FINAL)", goal: 1000000 }
+  ];
+
   const MAX_GOAL = 1000000;
-  const CRIT_RATE = 0.03; // 3%
-  const STORAGE_KEY_HITS = 'bh_punch_hits';
-  const STORAGE_KEY_CRITS = 'bh_punch_crits';
+  const CRIT_RATE = 0.03;       // 3% 크리티컬
+  const FEVER_RATE = 0.0005;    // 0.05% 피버타임
+  const FEVER_DURATION = 10000; // 10초
+
+  // 스토리지 키
+  const STORAGE_KEY_TOTAL_HITS = 'bh_total_hits';
+  const STORAGE_KEY_STAGE_IDX  = 'bh_stage_idx';
+  const STORAGE_KEY_CRITS      = 'bh_punch_crits';
   const STORAGE_KEY_CUSTOM_IMG = 'bh_punch_custom_img';
-  const STORAGE_KEY_SOUND = 'bh_punch_sound';
-  const STORAGE_KEY_HAPTIC = 'bh_punch_haptic';
+  const STORAGE_KEY_SOUND      = 'bh_punch_sound';
+  const STORAGE_KEY_HAPTIC     = 'bh_punch_haptic';
 
   // --- 상태값 ---
-  let hitCount = parseInt(localStorage.getItem(STORAGE_KEY_HITS) || '0', 10);
+  let totalHits = parseInt(localStorage.getItem(STORAGE_KEY_TOTAL_HITS) || localStorage.getItem('bh_punch_hits') || '0', 10);
+  let currentStageIdx = parseInt(localStorage.getItem(STORAGE_KEY_STAGE_IDX) || '0', 10);
   let critCount = parseInt(localStorage.getItem(STORAGE_KEY_CRITS) || '0', 10);
   let soundEnabled = localStorage.getItem(STORAGE_KEY_SOUND) !== 'false';
   let hapticEnabled = localStorage.getItem(STORAGE_KEY_HAPTIC) !== 'false';
-  let isCleared = hitCount >= MAX_GOAL;
+  let isCleared = totalHits >= MAX_GOAL;
 
-  // CPS (Clicks Per Second) 측정 변수
+  // 스테이지 인덱스 보정 (기존 세이브 데이터가 있을 경우 알맞은 스테이지로 자동 동기화)
+  syncStageWithHits();
+
+  function syncStageWithHits() {
+    for (let i = 0; i < STAGES.length; i++) {
+      if (totalHits < STAGES[i].goal) {
+        currentStageIdx = i;
+        return;
+      }
+    }
+    currentStageIdx = STAGES.length - 1;
+  }
+
+  // 피버타임 상태
+  let isFever = false;
+  let feverEndTime = 0;
+  let feverInterval = null;
+
+  // CPS & 타격 애니메이션
   let recentHits = [];
   let currentCps = 0;
-
-  // 애니메이션 토글 변수 (좌/우 번갈아 찌그러짐)
   let hitToggle = false;
+  let dizzyTimeout = null;
+  let spriteTimeout = null;
+  let currentCustomImg = localStorage.getItem(STORAGE_KEY_CUSTOM_IMG) || null;
 
   // --- DOM 요소 캐싱 ---
+  const stageBadgeEl = document.getElementById('stage-badge');
+  const stageGoalTextEl = document.getElementById('stage-goal-text');
+  const feverBannerEl = document.getElementById('fever-banner');
+  const feverTimerEl = document.getElementById('fever-timer');
+  const feverAuraEl = document.getElementById('fever-aura');
+  const stageClearToastEl = document.getElementById('stage-clear-toast');
+  const toastDescEl = document.getElementById('toast-desc');
+
   const hitCountEl = document.getElementById('hit-count');
+  const totalHitCountEl = document.getElementById('total-hit-count');
   const progressBarEl = document.getElementById('progress-bar');
   const progressPercentEl = document.getElementById('progress-percent');
   const critStatsEl = document.getElementById('crit-stats');
@@ -52,6 +101,8 @@
   const resetDataBtn = document.getElementById('reset-data-btn');
   const customImgInput = document.getElementById('custom-image-input');
   const resetImgBtn = document.getElementById('reset-img-btn');
+  const triggerFeverBtn = document.getElementById('trigger-fever-btn');
+  const nextStageBtn = document.getElementById('next-stage-btn');
 
   const clearModal = document.getElementById('clear-modal');
   const clearCritCountEl = document.getElementById('clear-crit-count');
@@ -61,7 +112,9 @@
   const fxCanvas = document.getElementById('fx-canvas');
   const ctx = fxCanvas.getContext('2d');
 
-  // --- Web Audio API 합성 엔진 (외부 오디오 파일 없이 무지연 사운드 생성) ---
+  // ==========================================================================
+  // Web Audio API 리얼 퍽퍽 타격 사운드 합성기
+  // ==========================================================================
   let audioCtx = null;
 
   function initAudio() {
@@ -76,71 +129,71 @@
     }
   }
 
-  // 일반 타격 사운드 (묵직한 퍽! 소리)
+  /**
+   * 리얼한 살덩이 '퍽! 퍽!' 펀치 사운드 합성
+   * - 둔탁한 저음 몸통 펀치 (Thud)
+   * - 찰진 살갗 마찰 스냅 (Slap)
+   * - 뼈/근육 공명 (Resonance)
+   * - 타격마다 ±12% 미세 주파수 변조로 연타 시 진짜 때리는 느낌 구현
+   */
   function playHitSound() {
     if (!soundEnabled || !audioCtx) return;
     try {
       const t = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      // 연타할 때마다 미세하게 다른 톤 (0.9 ~ 1.15)
+      const pitchMod = 0.92 + Math.random() * 0.22;
+      const feverPitch = isFever ? 1.25 : 1.0;
 
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(140, t);
-      osc.frequency.exponentialRampToValueAtTime(30, t + 0.12);
+      // 1. [몸통 타격 바디 Thud] 묵직한 '퍽-' 저음
+      const thudOsc = audioCtx.createOscillator();
+      const thudGain = audioCtx.createGain();
 
-      gain.gain.setValueAtTime(0.7, t);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+      thudOsc.type = 'triangle';
+      const startFreq = (175 * pitchMod) * feverPitch;
+      const endFreq = 38 * pitchMod;
+      thudOsc.frequency.setValueAtTime(startFreq, t);
+      thudOsc.frequency.exponentialRampToValueAtTime(endFreq, t + 0.08);
 
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      thudGain.gain.setValueAtTime(0.85, t);
+      thudGain.gain.exponentialRampToValueAtTime(0.01, t + 0.09);
 
-      osc.start(t);
-      osc.stop(t + 0.12);
+      thudOsc.connect(thudGain);
+      thudGain.connect(audioCtx.destination);
+      thudOsc.start(t);
+      thudOsc.stop(t + 0.09);
 
-      // 찰싹 소리를 위한 노이즈 버퍼 합성
-      playNoiseSnap(0.04, 0.4);
+      // 2. [찰진 살 스냅 Flesh Slap] 찰싹하는 노이즈 임팩트
+      playFleshSnap(0.045, 0.45 * (isFever ? 1.3 : 1.0), 1300 * pitchMod);
+
+      // 3. [뼈/근육 공명 Resonance] 둔탁한 펀치감 강화
+      const resOsc = audioCtx.createOscillator();
+      const resGain = audioCtx.createGain();
+      resOsc.type = 'sine';
+      resOsc.frequency.setValueAtTime(320 * pitchMod, t);
+      resOsc.frequency.exponentialRampToValueAtTime(80, t + 0.05);
+
+      resGain.gain.setValueAtTime(0.35, t);
+      resGain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+
+      resOsc.connect(resGain);
+      resGain.connect(audioCtx.destination);
+      resOsc.start(t);
+      resOsc.stop(t + 0.05);
+
     } catch (e) {
       console.warn('Audio play error', e);
     }
   }
 
-  // 크리티컬 사운드 (강력한 쾅! 폭발음)
-  function playCriticalSound() {
-    if (!soundEnabled || !audioCtx) return;
-    try {
-      const t = audioCtx.currentTime;
-
-      // 1. 깊은 서브 베이스 붐
-      const subOsc = audioCtx.createOscillator();
-      const subGain = audioCtx.createGain();
-      subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(220, t);
-      subOsc.frequency.exponentialRampToValueAtTime(25, t + 0.35);
-
-      subGain.gain.setValueAtTime(1.0, t);
-      subGain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
-
-      subOsc.connect(subGain);
-      subGain.connect(audioCtx.destination);
-
-      subOsc.start(t);
-      subOsc.stop(t + 0.35);
-
-      // 2. 강렬한 크런치 노이즈
-      playNoiseSnap(0.18, 0.8);
-    } catch (e) {
-      console.warn('Crit audio error', e);
-    }
-  }
-
-  // 노이즈 버퍼 제너레이터 (스냅/타격감 강화)
-  function playNoiseSnap(duration, volume) {
+  // 찰진 살갗 마찰음 생성 노이즈 필터
+  function playFleshSnap(duration, volume, filterFreq) {
     if (!audioCtx) return;
-    const bufferSize = audioCtx.sampleRate * duration;
+    const bufferSize = Math.floor(audioCtx.sampleRate * duration);
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
+      // 거친 살갗 노이즈
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
     }
 
     const noise = audioCtx.createBufferSource();
@@ -148,7 +201,8 @@
 
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.value = 1000;
+    filter.frequency.value = filterFreq;
+    filter.Q.value = 1.4;
 
     const gain = audioCtx.createGain();
     const t = audioCtx.currentTime;
@@ -162,10 +216,65 @@
     noise.start(t);
   }
 
-  // 클리어 팡파르 사운드
-  function playFanfareSound() {
+  // 크리티컬 펀치 사운드 (뼈가 부러질 듯한 '콰직! 쾅!' 사운드)
+  function playCriticalSound() {
     if (!soundEnabled || !audioCtx) return;
-    const notes = [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5];
+    try {
+      const t = audioCtx.currentTime;
+
+      // 1. 강렬한 서브 베이스 폭발
+      const subOsc = audioCtx.createOscillator();
+      const subGain = audioCtx.createGain();
+      subOsc.type = 'sine';
+      subOsc.frequency.setValueAtTime(260, t);
+      subOsc.frequency.exponentialRampToValueAtTime(22, t + 0.38);
+
+      subGain.gain.setValueAtTime(1.0, t);
+      subGain.gain.exponentialRampToValueAtTime(0.01, t + 0.38);
+
+      subOsc.connect(subGain);
+      subGain.connect(audioCtx.destination);
+
+      subOsc.start(t);
+      subOsc.stop(t + 0.38);
+
+      // 2. 뼈 쪼개지는 강타 크런치 노이즈
+      playFleshSnap(0.18, 0.9, 1800);
+      playFleshSnap(0.08, 0.7, 700);
+    } catch (e) {
+      console.warn('Crit audio error', e);
+    }
+  }
+
+  // 피버타임 발동 사운드 (불꽃 폭발 '슈아아악! 쾅!')
+  function playFeverStartSound() {
+    if (!soundEnabled || !audioCtx) return;
+    try {
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(800, t + 0.3);
+
+      gain.gain.setValueAtTime(0.5, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.5);
+
+      playFleshSnap(0.4, 0.8, 2400);
+    } catch (e) {}
+  }
+
+  // 스테이지 클리어 사운드 (상승 아르페지오 딩동댕동!)
+  function playStageClearSound() {
+    if (!soundEnabled || !audioCtx) return;
+    const notes = [392.0, 523.25, 659.25, 783.99, 1046.5];
     notes.forEach((freq, idx) => {
       setTimeout(() => {
         if (!audioCtx) return;
@@ -174,38 +283,55 @@
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, t);
-        gain.gain.setValueAtTime(0.4, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+        gain.gain.setValueAtTime(0.45, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start(t);
-        osc.stop(t + 0.4);
+        osc.stop(t + 0.3);
+      }, idx * 75);
+    });
+  }
+
+  // 최종 엔딩 팡파르 사운드
+  function playFanfareSound() {
+    if (!soundEnabled || !audioCtx) return;
+    const notes = [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5, 1318.5];
+    notes.forEach((freq, idx) => {
+      setTimeout(() => {
+        if (!audioCtx) return;
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.45);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.45);
       }, idx * 100);
     });
   }
 
-  // --- 진동 햅틱 엔진 (Android 하드웨어 진동 + iOS/전기종 스피커 물리 진동) ---
+  // --- 진동 햅틱 엔진 ---
   function triggerHaptic(isCrit) {
     if (!hapticEnabled) return;
 
-    // 1. Android 하드웨어 진동 모터 호출 (시간을 50ms로 늘려 확실하게 모터 기동)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
         if (isCrit) {
-          navigator.vibrate([80, 40, 100]); // 크리티컬 2단 강타
+          navigator.vibrate([80, 40, 100]);
         } else {
-          navigator.vibrate(50); // 일반 50ms 손맛 진동
+          navigator.vibrate(isFever ? 65 : 45);
         }
-      } catch (err) {
-        console.warn('Vibration API error:', err);
-      }
+      } catch (err) {}
     }
 
-    // 2. iOS Safari 및 스마트폰용 물리적 스피커 햅틱 진동 펄스 (스피커 진동판이 폰을 떨리게 함)
     playHapticAudioPulse(isCrit);
   }
 
-  // 스피커를 모터처럼 진동시키는 35Hz 초저주파 서브우퍼 펄스
   function playHapticAudioPulse(isCrit) {
     if (!audioCtx) return;
     try {
@@ -213,7 +339,6 @@
       const subOsc = audioCtx.createOscillator();
       const subGain = audioCtx.createGain();
 
-      // 초저주파 정현파 (소리는 묵직하게 낮고 폰 본체를 물리적으로 진동시킴)
       subOsc.type = 'sine';
       subOsc.frequency.setValueAtTime(isCrit ? 45 : 32, t);
 
@@ -226,33 +351,139 @@
 
       subOsc.start(t);
       subOsc.stop(t + dur);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   }
 
-  // --- UI 업데이트 ---
+  // ==========================================================================
+  // UI & 스코어보드 업데이트
+  // ==========================================================================
   function updateScoreboard() {
-    hitCountEl.textContent = hitCount.toLocaleString();
-    const percent = ((hitCount / MAX_GOAL) * 100);
-    progressBarEl.style.width = Math.min(100, percent) + '%';
-    progressPercentEl.textContent = percent.toFixed(4) + '%';
+    const stage = STAGES[currentStageIdx] || STAGES[STAGES.length - 1];
+    const prevGoal = currentStageIdx > 0 ? STAGES[currentStageIdx - 1].goal : 0;
+    const stageGoal = stage.goal;
 
-    const critRatio = hitCount > 0 ? ((critCount / hitCount) * 100).toFixed(1) : '3.0';
+    // 스테이지 뱃지 및 목표
+    stageBadgeEl.textContent = `STAGE ${stage.stage}: ${stage.name}`;
+    stageGoalTextEl.textContent = `목표: ${stageGoal.toLocaleString()}대`;
+
+    // 현재 스테이지 진행도 표시
+    hitCountEl.textContent = `${totalHits.toLocaleString()} / ${stageGoal.toLocaleString()}`;
+    totalHitCountEl.textContent = totalHits.toLocaleString();
+
+    // 프로그레스 바 (현재 스테이지 구간 기준)
+    const stageRange = stageGoal - prevGoal;
+    const stageCurrent = Math.max(0, totalHits - prevGoal);
+    const stagePercent = Math.min(100, (stageCurrent / stageRange) * 100);
+    progressBarEl.style.width = stagePercent + '%';
+
+    // 전체 총 퍼센트
+    const totalPercent = ((totalHits / MAX_GOAL) * 100);
+    progressPercentEl.textContent = `${totalPercent.toFixed(2)}% (전체)`;
+
+    const critRatio = totalHits > 0 ? ((critCount / totalHits) * 100).toFixed(1) : '3.0';
     critStatsEl.textContent = `💥 크리티컬: ${critCount.toLocaleString()}회 (${critRatio}%)`;
 
-    // 로컬 스토리지 저장 (주기적 동기화)
-    localStorage.setItem(STORAGE_KEY_HITS, hitCount.toString());
+    // 저장
+    localStorage.setItem(STORAGE_KEY_TOTAL_HITS, totalHits.toString());
+    localStorage.setItem(STORAGE_KEY_STAGE_IDX, currentStageIdx.toString());
     localStorage.setItem(STORAGE_KEY_CRITS, critCount.toString());
   }
 
-  // --- 플로팅 텍스트 이펙트 ---
-  function spawnFloatingText(x, y, isCrit) {
-    const textEl = document.createElement('div');
-    textEl.className = 'floating-dmg' + (isCrit ? ' critical' : '');
-    textEl.textContent = isCrit ? '💥 CRITICAL! +10' : '+1';
+  // ==========================================================================
+  // 피버 타임 시스템 (0.05% 확률, 10초간 10배 데미지)
+  // ==========================================================================
+  function triggerFeverTime() {
+    if (isFever) {
+      // 이미 피버 중이면 시간만 10초 리필
+      feverEndTime = performance.now() + FEVER_DURATION;
+      return;
+    }
 
-    // 좌표 지정 (뷰포트 밖 탈출 방지)
+    isFever = true;
+    feverEndTime = performance.now() + FEVER_DURATION;
+
+    playFeverStartSound();
+    triggerHaptic(true);
+
+    feverBannerEl.classList.remove('hidden');
+    feverAuraEl.classList.remove('hidden');
+
+    // 불꽃 축하 파티클 발사
+    launchFeverSparks();
+
+    clearInterval(feverInterval);
+    feverInterval = setInterval(() => {
+      const remaining = Math.max(0, feverEndTime - performance.now());
+      feverTimerEl.textContent = (remaining / 1000).toFixed(1) + 's';
+
+      if (remaining <= 0) {
+        endFeverTime();
+      }
+    }, 100);
+  }
+
+  function endFeverTime() {
+    isFever = false;
+    clearInterval(feverInterval);
+    feverBannerEl.classList.add('hidden');
+    feverAuraEl.classList.add('hidden');
+  }
+
+  // ==========================================================================
+  // 스테이지 클리어 연출
+  // ==========================================================================
+  function checkStageProgress() {
+    const currentGoal = STAGES[currentStageIdx].goal;
+
+    if (totalHits >= currentGoal) {
+      // 최종 100만대 클리어 검사
+      if (totalHits >= MAX_GOAL && !isCleared) {
+        triggerGameClear();
+        return;
+      }
+
+      // 다음 스테이지로 진출 가능한 경우
+      if (currentStageIdx < STAGES.length - 1) {
+        currentStageIdx++;
+        triggerStageClear(currentStageIdx);
+      }
+    }
+  }
+
+  let toastTimeout = null;
+  function triggerStageClear(nextIdx) {
+    const nextStage = STAGES[nextIdx];
+    playStageClearSound();
+    launchConfetti();
+
+    // 토스트 팝업 갱신
+    toastDescEl.textContent = `축하합니다! STAGE ${nextStage.stage} [${nextStage.name}] 진입!`;
+    stageClearToastEl.classList.remove('hidden');
+
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      stageClearToastEl.classList.add('hidden');
+    }, 2200);
+
+    updateScoreboard();
+  }
+
+  // ==========================================================================
+  // 플로팅 텍스트 이펙트
+  // ==========================================================================
+  function spawnFloatingText(x, y, isCrit, damage) {
+    const textEl = document.createElement('div');
+    textEl.className = 'floating-dmg' + (isCrit ? ' critical' : '') + (isFever ? ' fever' : '');
+
+    let label = `+${damage}`;
+    if (isCrit) {
+      label = isFever ? `🔥 CRITICAL! +${damage}` : `💥 CRITICAL! +${damage}`;
+    } else if (isFever) {
+      label = `🔥 +${damage}`;
+    }
+
+    textEl.textContent = label;
+
     const containerRect = gameContainerEl.getBoundingClientRect();
     const relativeX = x - containerRect.left;
     const relativeY = y - containerRect.top;
@@ -269,7 +500,9 @@
     }, 850);
   }
 
-  // --- 타격 파티클 효과 (Canvas) ---
+  // ==========================================================================
+  // 타격 파티클 효과 (Canvas)
+  // ==========================================================================
   let particles = [];
   function resizeCanvas() {
     fxCanvas.width = gameContainerEl.clientWidth;
@@ -283,20 +516,36 @@
     const px = x - containerRect.left;
     const py = y - containerRect.top;
 
-    const count = isCrit ? 22 : 8;
+    const count = isCrit ? (isFever ? 35 : 22) : (isFever ? 18 : 8);
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = (isCrit ? 5 : 3) * (0.5 + Math.random());
+      const speed = (isCrit ? 6 : 3.5) * (0.5 + Math.random());
       particles.push({
         x: px,
         y: py,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         size: isCrit ? Math.random() * 6 + 3 : Math.random() * 4 + 2,
-        color: isCrit ? (Math.random() > 0.5 ? '#facc15' : '#ef4444') : '#ffffff',
+        color: isFever ? '#ea580c' : (isCrit ? (Math.random() > 0.5 ? '#facc15' : '#ef4444') : '#ffffff'),
         alpha: 1,
         life: 1,
         decay: 0.04 + Math.random() * 0.03
+      });
+    }
+  }
+
+  function launchFeverSparks() {
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: fxCanvas.width * Math.random(),
+        y: fxCanvas.height * 0.7,
+        vx: (Math.random() - 0.5) * 8,
+        vy: -(Math.random() * 10 + 4),
+        size: Math.random() * 7 + 3,
+        color: Math.random() > 0.5 ? '#f97316' : '#ef4444',
+        alpha: 1,
+        life: 1,
+        decay: 0.02 + Math.random() * 0.02
       });
     }
   }
@@ -326,55 +575,56 @@
   }
   requestAnimationFrame(updateParticles);
 
-  // --- 타격 핸들러 (핵심 메커니즘) ---
-  let dizzyTimeout = null;
-  let spriteTimeout = null;
-  let currentCustomImg = localStorage.getItem(STORAGE_KEY_CUSTOM_IMG) || null;
-
+  // ==========================================================================
+  // 타격 핸들러 (핵심 메커니즘)
+  // ==========================================================================
   function hit(x, y) {
     if (isCleared) return;
     initAudio();
 
+    // 0.05% 확률 피버타임 판정
+    if (!isFever && Math.random() < FEVER_RATE) {
+      triggerFeverTime();
+    }
+
     // 3% 확률 크리티컬 판정
     const isCrit = Math.random() < CRIT_RATE;
-    const damage = isCrit ? 10 : 1;
+    const baseDamage = isCrit ? 10 : 1;
+    // 피버타임 시 10배 증폭!
+    const damage = isFever ? (baseDamage * 10) : baseDamage;
 
-    hitCount += damage;
+    totalHits += damage;
     if (isCrit) {
       critCount++;
     }
 
-    // CPS 측정용 타임스탬프 기록
+    // CPS 측정용 타임스탬프
     const now = performance.now();
     recentHits.push(now);
 
     // 시각 & 촉각 & 청각 효과
-    spawnFloatingText(x, y, isCrit);
+    spawnFloatingText(x, y, isCrit, damage);
     spawnHitParticles(x, y, isCrit);
     triggerHaptic(isCrit);
 
-    // 스프라이트 이미지 전환
+    // 스프라이트 교체 & 캐릭터 전용 애니메이션 (화면은 고정)
     clearTimeout(spriteTimeout);
     if (isCrit) {
       playCriticalSound();
 
-      // 크리티컬 스프라이트
       charImgEl.src = './assets/critical.png';
       spriteTimeout = setTimeout(() => {
         charImgEl.src = currentCustomImg || './assets/target.png';
       }, 350);
 
-      // 캐릭터 전용 크리티컬 피격 & 흔들림 모션 (화면은 고정하여 멀미 방지)
       charContainerEl.classList.remove('anim-crit', 'anim-hit-left', 'anim-hit-right');
       void charContainerEl.offsetWidth; // reflow
       charContainerEl.className = 'anim-crit';
 
-      // 스코어 범프
-      hitCountEl.classList.remove('bump', 'crit-bump');
+      hitCountEl.classList.remove('bump', 'crit-bump', 'fever-bump');
       void hitCountEl.offsetWidth;
       hitCountEl.classList.add('crit-bump');
 
-      // 머리 위 별 표시
       dizzyStarsEl.classList.remove('hidden');
       clearTimeout(dizzyTimeout);
       dizzyTimeout = setTimeout(() => {
@@ -384,30 +634,23 @@
     } else {
       playHitSound();
 
-      // 일반 피격 스프라이트
       charImgEl.src = './assets/hit.png';
       spriteTimeout = setTimeout(() => {
         charImgEl.src = currentCustomImg || './assets/target.png';
       }, 120);
 
-      // 캐릭터만 좌/우 번갈아가며 타격 모션 & 흔들림 (화면은 고정)
       hitToggle = !hitToggle;
       charContainerEl.classList.remove('anim-crit', 'anim-hit-left', 'anim-hit-right');
       void charContainerEl.offsetWidth; // reflow
       charContainerEl.className = hitToggle ? 'anim-hit-left' : 'anim-hit-right';
 
-      // 스코어 범프
-      hitCountEl.classList.remove('bump', 'crit-bump');
+      hitCountEl.classList.remove('bump', 'crit-bump', 'fever-bump');
       void hitCountEl.offsetWidth;
-      hitCountEl.classList.add('bump');
+      hitCountEl.classList.add(isFever ? 'fever-bump' : 'bump');
     }
 
     updateScoreboard();
-
-    // 1,000,000대 달성 검사
-    if (hitCount >= MAX_GOAL && !isCleared) {
-      triggerGameClear();
-    }
+    checkStageProgress();
   }
 
   // --- CPS 주기적 계산 ---
@@ -433,31 +676,31 @@
   }, { passive: false });
 
   stageEl.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch' || isTouching) return; // 터치 이벤트와 중복 방지
+    if (e.pointerType === 'touch' || isTouching) return;
     e.preventDefault();
     hit(e.clientX, e.clientY);
   }, { passive: false });
 
-  // 우클릭 메뉴 및 롱프레스 팝업 방어
   document.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  // --- 게임 클리어 연출 ---
+  // ==========================================================================
+  // 최종 게임 클리어 연출 (1,000,000대)
+  // ==========================================================================
   function triggerGameClear() {
     isCleared = true;
-    hitCount = MAX_GOAL;
+    totalHits = MAX_GOAL;
     updateScoreboard();
     clearCritCountEl.textContent = critCount.toLocaleString();
 
     playFanfareSound();
     clearModal.classList.remove('hidden');
 
-    // 축하 폭죽 연속 발사
     launchConfetti();
   }
 
   function launchConfetti() {
-    const colors = ['#facc15', '#ef4444', '#3b82f6', '#10b981', '#ec4899'];
-    for (let i = 0; i < 80; i++) {
+    const colors = ['#facc15', '#ef4444', '#3b82f6', '#10b981', '#ec4899', '#f97316'];
+    for (let i = 0; i < 90; i++) {
       particles.push({
         x: fxCanvas.width * Math.random(),
         y: fxCanvas.height * 0.4,
@@ -472,7 +715,9 @@
     }
   }
 
-  // --- 모달 & 버튼 이벤트 ---
+  // ==========================================================================
+  // 모달 & 버튼 이벤트
+  // ==========================================================================
   soundBtn.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
     localStorage.setItem(STORAGE_KEY_SOUND, soundEnabled);
@@ -490,7 +735,7 @@
   });
 
   infoBtn.addEventListener('click', () => {
-    alert("🥊 [병훈이 개패기 게임 룰]\n\n• 남성을 탭하여 1,000,000대를 때리세요!\n• 3% 확률로 강력한 크리티컬(+10)이 터집니다.\n• 여러 손가락으로 화면을 동시에 두드려 폭풍 연타가 가능합니다.\n• 데이터는 브라우저에 자동 저장됩니다.");
+    alert("🥊 [병훈이 개패기 룰]\n\n• 스테이지별 목표(1단계 100대, 2단계 500대...)를 돌파하세요!\n• 3% 확률로 강력한 크리티컬(+10대)!\n• 0.05% 확률로 10초간 🔥피버타임(데미지 10배) 발동!\n• 여러 손가락으로 화면을 동시에 두드려 폭풍 연타 가능!");
   });
 
   devMenuBtn.addEventListener('click', () => {
@@ -506,29 +751,64 @@
   });
 
   // 치트 버튼 이벤트
-  document.querySelectorAll('.cheat-btn').forEach(btn => {
+  document.querySelectorAll('.cheat-btn[data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const add = btn.getAttribute('data-add');
-      const setVal = btn.getAttribute('data-set');
-      if (add) {
-        hitCount += parseInt(add, 10);
-      } else if (setVal) {
-        hitCount = parseInt(setVal, 10);
-      }
-      if (hitCount >= MAX_GOAL) {
-        hitCount = MAX_GOAL;
+      const add = parseInt(btn.getAttribute('data-add'), 10);
+      totalHits += add;
+      if (totalHits >= MAX_GOAL) {
+        totalHits = MAX_GOAL;
         triggerGameClear();
+      } else {
+        syncStageWithHits();
       }
       updateScoreboard();
     });
   });
 
+  document.querySelectorAll('.cheat-btn[data-set]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      totalHits = parseInt(btn.getAttribute('data-set'), 10);
+      if (totalHits >= MAX_GOAL) {
+        totalHits = MAX_GOAL;
+        triggerGameClear();
+      } else {
+        syncStageWithHits();
+      }
+      updateScoreboard();
+    });
+  });
+
+  // 피버타임 테스트 치트 버튼
+  if (triggerFeverBtn) {
+    triggerFeverBtn.addEventListener('click', () => {
+      triggerFeverTime();
+      settingsModal.classList.add('hidden');
+    });
+  }
+
+  // 다음 스테이지 강제 이동 치트 버튼
+  if (nextStageBtn) {
+    nextStageBtn.addEventListener('click', () => {
+      if (currentStageIdx < STAGES.length - 1) {
+        currentStageIdx++;
+        totalHits = STAGES[currentStageIdx - 1].goal;
+        triggerStageClear(currentStageIdx);
+        updateScoreboard();
+      } else {
+        totalHits = MAX_GOAL;
+        triggerGameClear();
+      }
+    });
+  }
+
   // 데이터 리셋
   resetDataBtn.addEventListener('click', () => {
-    if (confirm('정말로 모든 타격 기록을 0으로 초기화하시겠습니까?')) {
-      hitCount = 0;
+    if (confirm('정말로 모든 타격 및 스테이지 기록을 0으로 초기화하시겠습니까?')) {
+      totalHits = 0;
+      currentStageIdx = 0;
       critCount = 0;
       isCleared = false;
+      endFeverTime();
       updateScoreboard();
       settingsModal.classList.add('hidden');
       alert('초기화되었습니다!');
@@ -537,7 +817,7 @@
 
   // 공유하기 버튼
   shareBtn.addEventListener('click', () => {
-    const text = `🏆 내가 병훈이를 1,000,000대 패서 게임을 클리어했다! 너도 해볼래?`;
+    const text = `🏆 내가 병훈이를 1,000,000대 패서 전 스테이지를 클리어했다! 너도 해볼래?`;
     if (navigator.share) {
       navigator.share({
         title: '병훈이 개패기 클리어!',
@@ -552,7 +832,8 @@
 
   // 다시하기
   restartGameBtn.addEventListener('click', () => {
-    hitCount = 0;
+    totalHits = 0;
+    currentStageIdx = 0;
     critCount = 0;
     isCleared = false;
     clearModal.classList.add('hidden');
@@ -587,7 +868,6 @@
     alert('기본 사진으로 복원되었습니다.');
   });
 
-  // 커스텀 이미지 저장분 복원
   if (currentCustomImg) {
     charImgEl.src = currentCustomImg;
   }

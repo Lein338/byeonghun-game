@@ -31,10 +31,22 @@
         </div>
       </div>
 
+      <!-- 스테이지 정보 표시 -->
+      <div class="stage-badge-row">
+        <span id="stage-badge" class="stage-badge">STAGE 1: 동네 골목길</span>
+        <span id="stage-goal-text" class="stage-goal-text">목표: 100대</span>
+      </div>
+
+      <!-- 피버타임 활성화 배너 -->
+      <div id="fever-banner" class="fever-banner hidden">
+        <div class="fever-glow"></div>
+        <span class="fever-text">🔥 FEVER TIME! 데미지 10배! <b id="fever-timer">10.0s</b> 🔥</span>
+      </div>
+
       <div class="counter-display">
-        <div class="count-label">누적 타격 수</div>
+        <div class="count-label">현재 스테이지 누적 / 목표</div>
         <div class="count-number" id="hit-count">0</div>
-        <div class="goal-label">목표: 1,000,000대</div>
+        <div class="total-count-label">전체 누적: <span id="total-hit-count">0</span> / 1,000,000대</div>
       </div>
 
       <div class="progress-wrap">
@@ -42,7 +54,7 @@
           <div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
         </div>
         <div class="progress-stats">
-          <span id="progress-percent">0.0000%</span>
+          <span id="progress-percent">0.0%</span>
           <span id="crit-stats">💥 크리티컬: 0회 (3%)</span>
         </div>
       </div>
@@ -64,10 +76,21 @@
         <div id="dizzy-stars" class="hidden">
           <span>⭐</span><span>💫</span><span>✨</span>
         </div>
+
+        <!-- 피버타임 불꽃 오라 이펙트 -->
+        <div id="fever-aura" class="fever-aura hidden"></div>
       </div>
 
       <!-- 플로팅 데미지 텍스트들이 동적으로 렌더링되는 컨테이너 -->
       <div id="floating-text-container"></div>
+
+      <!-- 스테이지 클리어 토스트 알림 -->
+      <div id="stage-clear-toast" class="stage-clear-toast hidden">
+        <div class="toast-card">
+          <div class="toast-title">🎉 STAGE CLEAR! 🎉</div>
+          <div id="toast-desc" class="toast-desc">STAGE 2로 진입합니다!</div>
+        </div>
+      </div>
     </main>
 
     <!-- 하단 상태 및 도구 메뉴 -->
@@ -95,6 +118,8 @@
             <button class="cheat-btn" data-add="1000">+1,000대</button>
             <button class="cheat-btn" data-add="100000">+100,000대</button>
             <button class="cheat-btn" data-set="999990">클리어 직전 (999,990대)</button>
+            <button id="trigger-fever-btn" class="cheat-btn fever-cheat">🔥 피버타임 발동 (10초)</button>
+            <button id="next-stage-btn" class="cheat-btn">⏩ 다음 스테이지</button>
           </div>
         </div>
 
