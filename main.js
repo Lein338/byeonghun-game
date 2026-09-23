@@ -9,16 +9,16 @@
 (function () {
   'use strict';
 
-  // --- 스테이지 정의 ---
+  // --- 스테이지 정의 (강남대학교 캠퍼스 투어) ---
   const STAGES = [
-    { stage: 1, name: "동네 골목길", goal: 100 },
-    { stage: 2, name: "학교 복도", goal: 500 },
-    { stage: 3, name: "노래방 앞", goal: 2000 },
-    { stage: 4, name: "동아리방", goal: 10000 },
-    { stage: 5, name: "강남역 사거리", goal: 50000 },
-    { stage: 6, name: "지하 격투장", goal: 200000 },
-    { stage: 7, name: "진격의 거인", goal: 500000 },
-    { stage: 8, name: "우주 정복 (FINAL)", goal: 1000000 }
+    { stage: 1, name: "머리띠", goal: 100, bg: "./assets/bg_stage1.png" },
+    { stage: 2, name: "샬롬관", goal: 500, bg: "./assets/bg_stage2.png" },
+    { stage: 3, name: "인사관", goal: 2000, bg: "./assets/bg_stage3.png" },
+    { stage: 4, name: "똥국", goal: 10000, bg: "./assets/bg_stage4.png" },
+    { stage: 5, name: "도서관", goal: 50000, bg: "./assets/bg_stage5.png" },
+    { stage: 6, name: "이공관", goal: 200000, bg: "./assets/bg_stage6.png" },
+    { stage: 7, name: "기숙사", goal: 500000, bg: "./assets/bg_stage7.png" },
+    { stage: 8, name: "영은이집 (FINAL)", goal: 1000000, bg: "./assets/bg_stage8.png" }
   ];
 
   const MAX_GOAL = 1000000;
@@ -69,6 +69,7 @@
   let currentCustomImg = localStorage.getItem(STORAGE_KEY_CUSTOM_IMG) || null;
 
   // --- DOM 요소 캐싱 ---
+  const stageBgLayerEl = document.getElementById('stage-bg-layer');
   const stageBadgeEl = document.getElementById('stage-badge');
   const stageGoalTextEl = document.getElementById('stage-goal-text');
   const feverBannerEl = document.getElementById('fever-banner');
@@ -157,10 +158,12 @@
     }
 
     try {
-      const resp = await fetch('./assets/punch_crit.mp3');
+      const resp = await fetch('./assets/crit_sound.mp3');
       const arrayBuf = await resp.arrayBuffer();
       critBuffer = await audioCtx.decodeAudioData(arrayBuf);
-    } catch (err) {}
+    } catch (err) {
+      console.warn('Crit audio load error:', err);
+    }
   }
 
   /**
@@ -231,7 +234,7 @@
       try {
         const source = audioCtx.createBufferSource();
         source.buffer = critBuffer;
-        source.playbackRate.value = 0.9 + Math.random() * 0.15;
+        source.playbackRate.value = 1.0;
         const gain = audioCtx.createGain();
         gain.gain.value = 1.0;
         source.connect(gain);
@@ -395,6 +398,11 @@
 
     const critRatio = totalHits > 0 ? ((critCount / totalHits) * 100).toFixed(1) : '3.0';
     critStatsEl.textContent = `💥 크리티컬: ${critCount.toLocaleString()}회 (${critRatio}%)`;
+
+    // 스테이지 배경 이미지 반영
+    if (stageBgLayerEl && stage.bg) {
+      stageBgLayerEl.style.backgroundImage = `url('${stage.bg}')`;
+    }
 
     // 저장
     localStorage.setItem(STORAGE_KEY_TOTAL_HITS, totalHits.toString());
