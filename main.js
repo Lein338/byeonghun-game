@@ -113,9 +113,12 @@
   const ctx = fxCanvas.getContext('2d');
 
   // ==========================================================================
-  // Web Audio API 리얼 퍽퍽 타격 사운드 합성기
+  // Web Audio API 오디오 엔진 (추출된 실제 MP3 타격음 + 합성기 듀얼 탑재)
   // ==========================================================================
   let audioCtx = null;
+  const punchBuffers = [];
+  let critBuffer = null;
+  let samplesLoading = false;
 
   function initAudio() {
     if (!audioCtx) {
@@ -127,32 +130,86 @@
     if (audioCtx && audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
+    if (audioCtx && !samplesLoading && punchBuffers.length === 0) {
+      preloadPunchSamples();
+    }
+  }
+
+  // 유튜브 쇼츠에서 추출한 실제 고음질 퍽! MP3 샘플 프리로딩
+  async function preloadPunchSamples() {
+    samplesLoading = true;
+    const sampleUrls = [
+      './assets/punch1.mp3',
+      './assets/punch2.mp3',
+      './assets/punch3.mp3',
+      './assets/punch4.mp3'
+    ];
+
+    for (const url of sampleUrls) {
+      try {
+        const resp = await fetch(url);
+        const arrayBuf = await resp.arrayBuffer();
+        const decoded = await audioCtx.decodeAudioData(arrayBuf);
+        punchBuffers.push(decoded);
+      } catch (err) {
+        console.warn('Sample load error:', url, err);
+      }
+    }
+
+    try {
+      const resp = await fetch('./assets/punch_crit.mp3');
+      const arrayBuf = await resp.arrayBuffer();
+      critBuffer = await audioCtx.decodeAudioData(arrayBuf);
+    } catch (err) {}
   }
 
   /**
-   * 리얼한 살덩이 '퍽! 퍽!' 펀치 사운드 합성
-   * - 둔탁한 저음 몸통 펀치 (Thud)
-   * - 찰진 살갗 마찰 스냅 (Slap)
-   * - 뼈/근육 공명 (Resonance)
-   * - 타격마다 ±12% 미세 주파수 변조로 연타 시 진짜 때리는 느낌 구현
+   * 실제 쇼츠 추출 펀치 MP3 재생 (지연시간 0초 AudioBufferSourceNode)
    */
   function playHitSound() {
     if (!soundEnabled || !audioCtx) return;
+
+    // 추출된 실제 MP3 샘플이 준비된 경우: 실제 사운드 재생!
+    if (punchBuffers.length > 0) {
+      try {
+        const source = audioCtx.createBufferSource();
+        // 4개 중 랜덤으로 골라 타격음의 다채로움 극대화
+        const buf = punchBuffers[Math.floor(Math.random() * punchBuffers.length)];
+        source.buffer = buf;
+
+        // 연타 시 피치 변조 (0.92 ~ 1.12배)로 살아있는 연타 타격감
+        const pitchMod = 0.92 + Math.random() * 0.20;
+        source.playbackRate.value = isFever ? (pitchMod * 1.15) : pitchMod;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = isFever ? 1.0 : 0.85;
+
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        source.start(0);
+        return;
+      } catch (e) {
+        console.warn('Sample play fallback', e);
+      }
+    }
+
+    // Fallback: 물리 합성 신시사이저 타격음
+    playSynthHitSound();
+  }
+
+  // Fallback용 물리 합성 사운드
+  function playSynthHitSound() {
     try {
       const t = audioCtx.currentTime;
-      // 연타할 때마다 미세하게 다른 톤 (0.9 ~ 1.15)
       const pitchMod = 0.92 + Math.random() * 0.22;
       const feverPitch = isFever ? 1.25 : 1.0;
 
-      // 1. [몸통 타격 바디 Thud] 묵직한 '퍽-' 저음
       const thudOsc = audioCtx.createOscillator();
       const thudGain = audioCtx.createGain();
 
       thudOsc.type = 'triangle';
-      const startFreq = (175 * pitchMod) * feverPitch;
-      const endFreq = 38 * pitchMod;
-      thudOsc.frequency.setValueAtTime(startFreq, t);
-      thudOsc.frequency.exponentialRampToValueAtTime(endFreq, t + 0.08);
+      thudOsc.frequency.setValueAtTime((175 * pitchMod) * feverPitch, t);
+      thudOsc.frequency.exponentialRampToValueAtTime(38 * pitchMod, t + 0.08);
 
       thudGain.gain.setValueAtTime(0.85, t);
       thudGain.gain.exponentialRampToValueAtTime(0.01, t + 0.09);
@@ -162,67 +219,30 @@
       thudOsc.start(t);
       thudOsc.stop(t + 0.09);
 
-      // 2. [찰진 살 스냅 Flesh Slap] 찰싹하는 노이즈 임팩트
       playFleshSnap(0.045, 0.45 * (isFever ? 1.3 : 1.0), 1300 * pitchMod);
-
-      // 3. [뼈/근육 공명 Resonance] 둔탁한 펀치감 강화
-      const resOsc = audioCtx.createOscillator();
-      const resGain = audioCtx.createGain();
-      resOsc.type = 'sine';
-      resOsc.frequency.setValueAtTime(320 * pitchMod, t);
-      resOsc.frequency.exponentialRampToValueAtTime(80, t + 0.05);
-
-      resGain.gain.setValueAtTime(0.35, t);
-      resGain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-
-      resOsc.connect(resGain);
-      resGain.connect(audioCtx.destination);
-      resOsc.start(t);
-      resOsc.stop(t + 0.05);
-
-    } catch (e) {
-      console.warn('Audio play error', e);
-    }
+    } catch (e) {}
   }
 
-  // 찰진 살갗 마찰음 생성 노이즈 필터
-  function playFleshSnap(duration, volume, filterFreq) {
-    if (!audioCtx) return;
-    const bufferSize = Math.floor(audioCtx.sampleRate * duration);
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      // 거친 살갗 노이즈
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
-    }
-
-    const noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = filterFreq;
-    filter.Q.value = 1.4;
-
-    const gain = audioCtx.createGain();
-    const t = audioCtx.currentTime;
-    gain.gain.setValueAtTime(volume, t);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    noise.start(t);
-  }
-
-  // 크리티컬 펀치 사운드 (뼈가 부러질 듯한 '콰직! 쾅!' 사운드)
+  // 크리티컬 펀치 사운드 (쇼츠 크리티컬 MP3 또는 서브우퍼 쾅!)
   function playCriticalSound() {
     if (!soundEnabled || !audioCtx) return;
+
+    if (critBuffer) {
+      try {
+        const source = audioCtx.createBufferSource();
+        source.buffer = critBuffer;
+        source.playbackRate.value = 0.9 + Math.random() * 0.15;
+        const gain = audioCtx.createGain();
+        gain.gain.value = 1.0;
+        source.connect(gain);
+        gain.connect(audioCtx.destination);
+        source.start(0);
+      } catch (e) {}
+    }
+
+    // 강력한 서브 베이스 추가
     try {
       const t = audioCtx.currentTime;
-
-      // 1. 강렬한 서브 베이스 폭발
       const subOsc = audioCtx.createOscillator();
       const subGain = audioCtx.createGain();
       subOsc.type = 'sine';
@@ -234,16 +254,9 @@
 
       subOsc.connect(subGain);
       subGain.connect(audioCtx.destination);
-
       subOsc.start(t);
       subOsc.stop(t + 0.38);
-
-      // 2. 뼈 쪼개지는 강타 크런치 노이즈
-      playFleshSnap(0.18, 0.9, 1800);
-      playFleshSnap(0.08, 0.7, 700);
-    } catch (e) {
-      console.warn('Crit audio error', e);
-    }
+    } catch (e) {}
   }
 
   // 피버타임 발동 사운드 (불꽃 폭발 '슈아아악! 쾅!')
